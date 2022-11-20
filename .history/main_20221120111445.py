@@ -420,7 +420,7 @@ async def buy_horse(info: Request) -> dict:
         seller_public_address = req["sellerAddress"]  # seller
         price = req["price"]
         ps = int(req["ps"])
-        totalAmount: int(req["totalAmount"])
+        totalAmount: req["totalAmount"] - int(req["ps"])
         saleId = req["saleId"]
 
         # add horse to user (myHorses) & update horse

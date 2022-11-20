@@ -296,7 +296,7 @@ async def create_horse(info: Request) -> dict:
             "damName": req["damName"],
             "damSiblingsName": req["damSiblingsName"],
             "bonus": req["bonus"],
-            "image": req["image"],
+            "image": req["imageSrc"],
             "horseOwnerBonus": req["horseOwnerBonus"],
             "breedingBonus": req["breedingBonus"],
             "earning": req["earning"],

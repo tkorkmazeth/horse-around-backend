@@ -10,6 +10,8 @@ import calendar
 import time
 import uuid
 import os
+import http.server
+import socketserver
 
 pydantic.json.ENCODERS_BY_TYPE[ObjectId] = str
 
@@ -23,6 +25,14 @@ origins = [
     "http://localhost:8000",
     "https://horse-around.vercel.app",
 ]
+
+PORT = 8000
+
+Handler = http.server.SimpleHTTPRequestHandler
+
+with socketserver.TCPServer(("", PORT), Handler) as httpd:
+    print("serving at port", PORT)
+    httpd.serve_forever()
 
 app.add_middleware(
     CORSMiddleware,
@@ -296,7 +306,7 @@ async def create_horse(info: Request) -> dict:
             "damName": req["damName"],
             "damSiblingsName": req["damSiblingsName"],
             "bonus": req["bonus"],
-            "image": req["image"],
+            "image": "https://www.clementoni.com/media/prod/tr/31811/the-horse-1500-parca-high-quality-collection_rj5qdHF.jpg",
             "horseOwnerBonus": req["horseOwnerBonus"],
             "breedingBonus": req["breedingBonus"],
             "earning": req["earning"],
@@ -417,9 +427,9 @@ async def buy_horse(info: Request) -> dict:
         horse_id = req["horseId"]
         buyer_public_address = req["buyerAddress"]  # buyer
         seller_public_address = req["sellerAddress"]  # seller
-        ps = int(req["ps"])
-        totalAmount = int(req["totalAmount"]) - ps
         price = req["price"]
+        ps = int(req["ps"])
+        totalAmount: int(req["totalAmount"]) - 70
         saleId = req["saleId"]
 
         # add horse to user (myHorses) & update horse
@@ -717,7 +727,6 @@ async def get_horses(info: Request) -> dict:
     """
     try:
         horses = db.get_horses()
-        print(horses)
         return horses
 
     except Exception as e:

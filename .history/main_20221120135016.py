@@ -296,7 +296,7 @@ async def create_horse(info: Request) -> dict:
             "damName": req["damName"],
             "damSiblingsName": req["damSiblingsName"],
             "bonus": req["bonus"],
-            "image": req["image"],
+            "image": "https://www.clementoni.com/media/prod/tr/31811/the-horse-1500-parca-high-quality-collection_rj5qdHF.jpg",
             "horseOwnerBonus": req["horseOwnerBonus"],
             "breedingBonus": req["breedingBonus"],
             "earning": req["earning"],

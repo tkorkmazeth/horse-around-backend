@@ -296,7 +296,7 @@ async def create_horse(info: Request) -> dict:
             "damName": req["damName"],
             "damSiblingsName": req["damSiblingsName"],
             "bonus": req["bonus"],
-            "image": req["image"],
+            "image": "https://www.clementoni.com/media/prod/tr/31811/the-horse-1500-parca-high-quality-collection_rj5qdHF.jpg",
             "horseOwnerBonus": req["horseOwnerBonus"],
             "breedingBonus": req["breedingBonus"],
             "earning": req["earning"],
@@ -304,6 +304,7 @@ async def create_horse(info: Request) -> dict:
             "overseasBonus": req["overseasBonus"],
             "preferenceDescription": req["preferenceDescription"],
             "totalAmount": int(req["totalAmount"]),
+            "ps": int(req["ps"]),
             "status": 2,  # 0: archive, 1: rejected, 2: collection , 3: sale, 4: auction
             "shareHolders": [],
             "auctionInfo": [],  # it is going to be filled when the horse is put on auction
@@ -417,9 +418,9 @@ async def buy_horse(info: Request) -> dict:
         horse_id = req["horseId"]
         buyer_public_address = req["buyerAddress"]  # buyer
         seller_public_address = req["sellerAddress"]  # seller
-        ps = int(req["ps"])
-        totalAmount = int(req["totalAmount"]) - ps
+        totalAmount: int(req["totalAmount"]) - 70
         price = req["price"]
+        ps = int(req["ps"])
         saleId = req["saleId"]
 
         # add horse to user (myHorses) & update horse

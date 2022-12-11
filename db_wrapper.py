@@ -353,17 +353,17 @@ class DbWrapper:
                     status_code=200, detail={"message": "Horse does not exist"}
                 )
 
-            collection_name = "users"
+            user_collection_name = "users"
 
-            collection = self.get_collection(collection_name)
-            collection.update_one(
+            userCollection = self.get_collection(user_collection_name)
+            userCollection.update_one(
                 {"publicAddress": horse_info["publicAddress"]},
                 {"$push": {"myHorses": horse_info["horseId"]}},
             )
 
-            collection_name = "horses"
-            collection = self.get_collection(collection_name)
-            collection.update_one(
+            horse_collection_name = "horses"
+            horseCollection = self.get_collection(horse_collection_name)
+            horseCollection.update_one(
                 {"horseId": horse_info["horseId"]}, {"$set": {"status": 2}}
             )
 
@@ -405,9 +405,6 @@ class DbWrapper:
         self, horse_id: int, public_address: str, sale_info: dict, token: str
     ) -> HTTPException:
         try:
-            collection_name = "horses"
-            collection = self.get_collection(collection_name)
-
             if not self.user_exists(public_address):
                 return HTTPException(
                     status_code=404,
@@ -435,44 +432,59 @@ class DbWrapper:
                     },
                 )
 
+            userCollection_name = "users"
+            userCollection = self.get_collection(userCollection_name)
+            user = userCollection.find_one({"publicAddress": public_address})
+            userCollection.update_one(
+                {"publicAddress": public_address},
+                {"$set": {"nonce": user["nonce"] + 1}},
+            )
+            print(user)
+
+            horseCollection_name = "horses"
+            horseCollection = self.get_collection(horseCollection_name)
             # check if horse is owned by user
-            horse = collection.find_one({"horseId": horse_id})
-            if horse["publicAddress"] != public_address:
+            horse = horseCollection.find_one({"horseId": horse_id})
+            if user["publicAddress"] != public_address:
                 return HTTPException(
                     status_code=401,
                     detail={"message": "User does not own horse", "response": False},
                 )
 
-            # check if horse is already on sale
-            if horse["status"] == 3:
-                return HTTPException(
-                    status_code=401,
-                    detail={"message": "Horse already on sale", "response": False},
-                )
+            # index = len(user["myHorses"]) - 1
 
-            # check if horse is already on auction
+            for index, myHorses in enumerate(user["myHorses"], start=0):
+                if myHorses["horseId"] == horse_id:
 
-            if horse["status"] == 4:
-                return HTTPException(
-                    status_code=401,
-                    detail={"message": "Horse already on auction", "response": False},
-                )
+                    userCollection.update_one(
+                        {"publicAddress": public_address},
+                        {"$set": {"myHorses." + str(index) + ".status": 3}},
+                    )
 
             sale_info["saleId"] = len(horse["saleInfo"])
 
-            collection.update_one(
+            horseCollection.update_one(
                 {"horseId": horse_id},
-                {"$set": {"status": 3}, "$push": {"saleInfo": sale_info}},
+                {"$push": {"saleInfo": sale_info}},
             )
 
-            collection_name = "users"
-            collection = self.get_collection(collection_name)
-            user = collection.find_one({"publicAddress": public_address})
-            collection.update_one(
-                {"publicAddress": public_address},
-                {"$set": {"nonce": user["nonce"] + 1}},
-            )
-            print(user)
+            if user["myHorses"]["status"] == 3:
+                return HTTPException(
+                    status_code=401,
+                    detail={
+                        "message": "Horse already on sale",
+                        "response": False,
+                    },
+                )
+
+            if user["myHorses"]["status"] == 4:
+                return HTTPException(
+                    status_code=401,
+                    detail={
+                        "message": "Horse already on auction",
+                        "response": False,
+                    },
+                )
 
             return HTTPException(
                 status_code=200,
@@ -537,6 +549,7 @@ class DbWrapper:
         saleId: int,
     ) -> HTTPException:
         try:
+
             if not self.horse_exists(horse_id):
                 return HTTPException(
                     status_code=404,
@@ -547,60 +560,138 @@ class DbWrapper:
                     status_code=404,
                     detail={"message": "User does not exist", "response": False},
                 )
-
+            ##print(horse_id)
             # Check token id owner is public address
             collection_name = "users"
-            collection = self.get_collection(collection_name)
-            buyer_ownerName = collection.find_one(
-                {"publicAddress": buyer_public_address}
-            )["username"]
-            collection.update_one(
-                {"publicAddress": buyer_public_address},
-                {"$push": {"myHorses": horse_id}},
-            )
+            userCollection = self.get_collection(collection_name)
+            user = userCollection.find_one({"publicAddress": buyer_public_address})
 
-            # remove sold horse from seller myHorses
-            collection.update_one(
-                {"publicAddress": seller_public_address},
-                {"$pull": {"myHorses": horse_id}, "$push": {"soldHorses": horse_id}},
+            if user["publicAddress"] == buyer_public_address:
+                if not user["myHorses"]:
+                    userCollection.update_one(
+                        {"publicAddress": buyer_public_address},
+                        {"$push": {"myHorses": {"horseId": horse_id, "status": 2}}},
+                    )
+            print("GO ON")
+
+            filterHorse = list(
+                filter(lambda x: x["horseId"] == horse_id, user["myHorses"])
             )
+            if len(filterHorse) >= 0:
+                for s in filterHorse:
+                    print("SSS", s)
+                    # filterAround = s["horseId"]
+            else:
+                userCollection.update_one(
+                    {"publicAddress": buyer_public_address},
+                    {"$push": {"myHorses": {"horseId": horse_id, "status": 2}}},
+                )
 
             collection_name = "horses"
-            collection = self.get_collection(collection_name)
-            horse = collection.find_one({"horseId": horse_id})
+            horseCollection = self.get_collection(collection_name)
+            horse = horseCollection.find_one({"horseId": horse_id})
             # publicAddress, seller -> buyer OK + ownerName, seller -> buyer OK +Status, 3->2 OK
             # saleInfo, will be empty OK + saleHistory, seller, buyer, date, price  OK
-            #
-            collection.update_one(
-                {"horseId": horse_id},
-                {
-                    "$set": {
-                        "publicAddress": buyer_public_address,
-                        "ownerName": buyer_ownerName,
-                        "status": 2,
-                    },
-                    "$push": {
-                        "saleHistory": {
-                            "seller": seller_public_address,
-                            "buyer": buyer_public_address,
-                            "price": price,
-                            "ps": ps,
-                            "totalAmount": totalAmount,
-                            "date": datetime.now().strftime("%d/%m/%Y"),
-                        },
-                        "shareHolders": {
-                            "publicAddress": buyer_public_address,
-                            "totalNFTs": totalAmount,
-                            "percentage": ps,
-                        },
-                    },
-                },
-            )
 
+            # for index, shareHolders in enumerate(horse["shareHolders"]):
+            #     if shareHolders["publicAddress"] == seller_public_address:
+            #         ##continue
+            #         print("HERE I AM")
+            #         if not shareHolders["publicAddress"] == buyer_public_address:
+            #             print("Ayni ayni YAMA")
+            #             horseCollection.update_one(
+            #                 {"horseId": horse_id},
+            #                 {
+            #                     "$set": {
+            #                         # "publicAddress": buyer_public_address,
+            #                         "ownerName": buyer_ownerName,
+            #                         # "status": 2,  # Change to set horse current status under myHorses
+            #                     },
+            #                     "$push": {
+            #                         "saleHistory": {
+            #                             "seller": seller_public_address,
+            #                             "buyer": buyer_public_address,
+            #                             "price": price,
+            #                             "amountBought": ps,
+            #                             # "shareLeft": totalAmount - ps,
+            #                             "date": datetime.now().strftime("%d/%m/%Y"),
+            #                         },
+            #                         "shareHolders": {
+            #                             "publicAddress": buyer_public_address,
+            #                             "percentage": ps,
+            #                             # "shareLeft": totalAmount - ps,
+            #                         },
+            #                     },
+            #                 },
+            #             )
+            #         else:
+            #             print("Nah you could NOT")
+            #             break
+
+            filterAddress = list(
+                filter(
+                    lambda x: x["publicAddress"] == buyer_public_address,
+                    horse["shareHolders"],
+                )
+            )
+            print("PublicAddress", len(filterAddress))
+            print("NERELEREGELDİK")
+            if len(filterAddress) < 1:
+                print("printtt")
+                horseCollection.update_one(
+                    {"horseId": horse_id},
+                    {
+                        "$push": {
+                            "saleHistory": {
+                                "seller": seller_public_address,
+                                "buyer": buyer_public_address,
+                                "price": price,
+                                "amountBought": ps,
+                                # "shareLeft": totalAmount - ps,
+                                "date": datetime.now().strftime("%d/%m/%Y"),
+                            },
+                            "shareHolders": {
+                                "publicAddress": buyer_public_address,
+                                "percentage": ps,
+                                # "shareLeft": totalAmount - ps,
+                            },
+                        },
+                    },
+                )
+
+            # For general horse collection
+            for index, shareHolders in enumerate(horse["shareHolders"]):
+                if shareHolders["publicAddress"] == buyer_public_address:
+                    horseCollection.update_one(
+                        {"horseId": horse_id},
+                        {
+                            "$set": {
+                                "shareHolders."
+                                + str(index)
+                                + ".percentage": shareHolders["percentage"]
+                                + ps
+                            }
+                        },
+                        {
+                            "$push": {
+                                "saleHistory": {
+                                    "seller": seller_public_address,
+                                    "buyer": buyer_public_address,
+                                    "price": price,
+                                    "amountBought": ps,
+                                    # "shareLeft": totalAmount - ps,
+                                    "date": datetime.now().strftime("%d/%m/%Y"),
+                                },
+                            }
+                        },
+                    )
+                    break
+
+            # For seller account
             for index, shareholder in enumerate(horse["shareHolders"]):
                 if shareholder["publicAddress"] == seller_public_address:
-                    if shareholder["totalNFTs"] - ps == 0:
-                        collection.update_one(
+                    if shareholder["percentage"] - ps == 0:
+                        horseCollection.update_one(
                             {"horseId": horse_id},
                             {
                                 "$pull": {
@@ -609,29 +700,60 @@ class DbWrapper:
                                     }
                                 }
                             },
-                        )
+                        ),
+                        userCollection.update_one(
+                            {"publicAddress": seller_public_address},
+                            {
+                                "$pull": {
+                                    "myHorses": {"horseId": horse_id, "status": 3}
+                                },
+                                "$push": {"soldHorses": {"horseId": horse_id}},
+                            },
+                        ),
                     else:
-                        collection.update_one(
+                        horseCollection.update_one(
                             {"horseId": horse_id},
                             {
                                 "$set": {
                                     "shareHolders."
                                     + str(index)
-                                    + ".percentage": shareholder["totalNFTs"]
+                                    + ".percentage": shareholder["percentage"]
                                     - ps
-                                }
+                                },
                             },
                         )
-                break
+                        break
 
+            # Check if seller still has an percentage if not delete saleInfo and pull the horse
             for index, sales in enumerate(horse["saleInfo"]):
                 if sales["saleId"] == saleId:
-                    # remove sale info
-                    collection.update_one(
-                        {"horseId": horse_id},
-                        {"$pull": {"saleInfo": {"saleId": saleId}}},
-                    )
-                break
+                    if sales["onMarket"] - ps == 0:
+                        horseCollection.update_one(
+                            {"horseId": horse_id},
+                            {"$pull": {"saleInfo": {"saleId": saleId}}},
+                            {
+                                "$set": {
+                                    "saleInfo": {
+                                        "sellerAddress": seller_public_address,
+                                        "onMarket": totalAmount,
+                                        "price": price,
+                                    },
+                                }
+                            },
+                        ),
+                    else:
+                        horseCollection.update_one(
+                            {"horseId": horse_id},
+                            {
+                                "$set": {
+                                    "saleInfo."
+                                    + str(index)
+                                    + ".onMarket": sales["onMarket"]
+                                    - ps
+                                },
+                            },
+                        )
+                        break
 
             return HTTPException(
                 status_code=200,
@@ -658,40 +780,59 @@ class DbWrapper:
                     status_code=200, detail={"message": "Horse does not exist"}
                 )
 
-            collection_name = "horses"
-            collection = self.get_collection(collection_name)
+            horse_collection_name = "horses"
+            horseCollection = self.get_collection(horse_collection_name)
 
-            horse = collection.find_one({"horseId": horse_id})
+            user_collection_name = "users"
+            userCollection = self.get_collection(user_collection_name)
+            user = userCollection.find_one({"publicAddress": public_address})
 
-            if horse["publicAddress"] != public_address:
-                return HTTPException(
-                    status_code=401,
-                    detail={"message": "User does not own horse", "response": False},
-                )
-            # check if horse is already on sale
-            if horse["status"] == 3:
-                return HTTPException(
-                    status_code=401,
-                    detail={"message": "Horse already on sale", "response": False},
-                )
-            # check if horse is already on auction
-            if horse["status"] == 4:
-                return HTTPException(
-                    status_code=401,
-                    detail={"message": "Horse already on auction", "response": False},
-                )
-            collection.update_one(
-                {"horseId": horse_id},
-                {"$set": {"status": 4}, "$push": {"auctionInfo": dict(auction_info)}},
-            )
+            for index, myHorses in enumerate(user["myHorses"]):
+                if myHorses["horseId"] == horse_id:
 
-            collection_name = "users"
-            collection = self.get_collection(collection_name)
-            user = collection.find_one({"publicAddress": public_address})
-            collection.update_one(
-                {"publicAddress": public_address},
-                {"$set": {"nonce": user["nonce"] + 1}},
-            )
+                    # Checck if user public address is valid
+                    if user["publicAddress"] != public_address:
+                        return HTTPException(
+                            status_code=401,
+                            detail={
+                                "message": "User does not own horse",
+                                "response": False,
+                            },
+                        )
+                    # Check if horse is already on sale
+                    if user["myHorses"]["status"] == 3:
+                        return HTTPException(
+                            status_code=401,
+                            detail={
+                                "message": "Horse already on sale",
+                                "response": False,
+                            },
+                        )
+
+                    # Check if horse is already on auction
+                    if user["myHorses"]["status"] == 4:
+                        return HTTPException(
+                            status_code=401,
+                            detail={
+                                "message": "Horse already on auction",
+                                "response": False,
+                            },
+                        )
+
+                    userCollection.update_one(
+                        {"publicAddress": public_address},
+                        {
+                            "$set": {"myHorses." + str(index) + ".status": 4},
+                        },
+                    )
+                    horseCollection.update_one(
+                        {"horseId": horse_id},
+                        {"$push": {"auctionInfo": dict(auction_info)}},
+                    )
+                    userCollection.update_one(
+                        {"publicAddress": public_address},
+                        {"$set": {"nonce": user["nonce"] + 1}},
+                    )
 
             return HTTPException(
                 status_code=200,
@@ -1438,28 +1579,29 @@ class DbWrapper:
                     status_code=200, detail={"message": "Horse already exists"}
                 )
 
-            collection_name = "horses"
-            collection = self.get_collection(collection_name)
-            horse_id = collection.insert_one(horse_info).inserted_id
-            horse = collection.find_one({"_id": horse_id})
+            horse_collection_name = "horses"
+            horseCollection = self.get_collection(horse_collection_name)
+            horse_id = horseCollection.insert_one(horse_info).inserted_id
+            horse = horseCollection.find_one({"_id": horse_id})
             # add shareholder to horse
-            collection.update_one(
+            horseCollection.update_one(
                 {"horseId": horse_info["horseId"]},
                 {
                     "$push": {
                         "shareHolders": {
                             "publicAddress": horse_info["publicAddress"],
                             "percentage": horse_info["totalAmount"],
+                            "shareLeft": horse_info["totalAmount"],
                         }
                     }
                 },
             )
 
-            collection_name = "users"
-            collection = self.get_collection(collection_name)
-            collection.update_one(
+            user_collection_name = "users"
+            userCollection = self.get_collection(user_collection_name)
+            userCollection.update_one(
                 {"publicAddress": horse_info["publicAddress"]},
-                {"$push": {"myHorses": horse["horseId"]}},
+                {"$push": {"myHorses": {"horseId": horse["horseId"], "status": 2}}},
             )
 
             return HTTPException(

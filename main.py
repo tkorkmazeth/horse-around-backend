@@ -22,6 +22,7 @@ origins = [
     "http://localhost:3000",
     "http://localhost:8000",
     "https://horse-around-blue.vercel.app/",
+    "https://horse-around-blue.vercel.app",
 ]
 
 app.add_middleware(
@@ -291,7 +292,6 @@ async def create_horse(info: Request) -> dict:
             "country": req["country"],
             "ownerName": req["ownerName"],
             "breederName": req["breederName"],
-            "jockeyName": req["jockeyName"],
             "sireName": req["sireName"],
             "damName": req["damName"],
             "damSiblingsName": req["damSiblingsName"],
@@ -299,12 +299,27 @@ async def create_horse(info: Request) -> dict:
             "image": req["image"],
             "horseOwnerBonus": req["horseOwnerBonus"],
             "breedingBonus": req["breedingBonus"],
+            "first": req["first"],
+            "second": req["second"],
+            "third": req["third"],
+            "fourth": req["fourth"],
+            "fifth": req["fifth"],
+            "sixth": req["sixth"],
+            "seventh": req["seventh"],
+            "eighth": req["eighth"],
+            "ninth": req["ninth"],
+            "tenth": req["tenth"],
+            "eleventh": req["eleventh"],
+            "twelfth": req["twelfth"],
+            "thirteenth": req["thirteenth"],
+            "fourteenth": req["fourteenth"],
             "earning": req["earning"],
             "sponsorshipEarnings": req["sponsorshipEarnings"],
             "overseasBonus": req["overseasBonus"],
             "preferenceDescription": req["preferenceDescription"],
             "totalAmount": int(req["totalAmount"]),
-            "status": 2,  # 0: archive, 1: rejected, 2: collection , 3: sale, 4: auction
+            "status": 3,
+            # "status": 2,  # 0: archive, 1: rejected, 2: collection , 3: sale, 4: auction
             "shareHolders": [],
             "auctionInfo": [],  # it is going to be filled when the horse is put on auction
             "saleInfo": [],
@@ -394,11 +409,9 @@ async def put_on_sale(info: Request) -> dict:
         sale_info = {
             "sellerAddress": public_address,
             "price": req["price"],
-            "ps": int(req["ps"]),
-            "signature": req["signature"],
-            "nonce": req["nonce"],
+            "onMarket": int(req["onMarket"]),
         }
-        # add horse to user (myHorses) & supdate horse
+        # add horse to user (myHorses) & update horse
         horse = db.put_on_sale(int(horse_id), public_address, sale_info, token)
         return horse
     except Exception as e:
@@ -418,7 +431,7 @@ async def buy_horse(info: Request) -> dict:
         buyer_public_address = req["buyerAddress"]  # buyer
         seller_public_address = req["sellerAddress"]  # seller
         ps = int(req["ps"])
-        totalAmount = int(req["totalAmount"]) - ps
+        totalAmount = int(req["totalAmount"])
         price = req["price"]
         saleId = req["saleId"]
 
